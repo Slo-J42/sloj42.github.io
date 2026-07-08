@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sloj42 :: offensive security</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0d0c;
+      --bg-alt: #0d1211;
+      --panel: #101614;
+      --panel-2: #0c1110;
+      --border: #1e2b26;
+      --border-bright: #2c4038;
+      --text: #c9d6d0;
+      --text-dim: #5f7972;
+      --text-dimmer: #3e534d;
+      --green: #3ddc84;
+      --green-bright: #7dffb8;
+      --amber: #ffb454;
+      --red: #ff5c5c;
+      --blue: #5fc9ff;
+      --mono-d: 'Space Mono', monospace;
+      --mono-b: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono-b);
+      font-size: 15px;
+      line-height: 1.65;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    ::selection {
+      background: var(--green);
+      color: #04120a;
+    }
+
+    /* subtle scanline / grid atmosphere */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(61, 220, 132, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(61, 220, 132, 0.025) 1px, transparent 1px);
+      background-size: 42px 42px;
+      pointer-events: none;
+      z-index: 0;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.15) 0px, rgba(0, 0, 0, 0.15) 1px, transparent 1px, transparent 3px);
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.25;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---------- NAV ---------- */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 500;
+      background: rgba(10, 13, 12, 0.92);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tabbar {
+      display: flex;
+      align-items: center;
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0 24px;
+      overflow-x: auto;
+    }
+
+    .tabbar .dots {
+      display: flex;
+      gap: 6px;
+      padding: 12px 16px 12px 0;
+      border-right: 1px solid var(--border);
+      margin-right: 6px;
+    }
+
+    .tabbar .dots span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dots span:nth-child(1) {
+      background: #ff5f56;
+    }
+
+    .dots span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .dots span:nth-child(3) {
+      background: #27c93f;
+    }
+
+    .tab {
+      font-family: var(--mono-b);
+      font-size: 12.5px;
+      color: var(--text-dim);
+      padding: 13px 14px;
+      white-space: nowrap;
+      border-right: 1px solid var(--border);
+      cursor: pointer;
+      transition: color .15s ease, background .15s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .tab:hover {
+      color: var(--green-bright);
+      background: rgba(61, 220, 132, 0.05);
+    }
+
+    .tab.resume {
+      margin-left: auto;
+      color: var(--amber);
+      border-right: none;
+    }
+
+    .tab.resume:hover {
+      color: #ffd08a;
+    }
+
+    /* ---------- TERMINAL WINDOW CHROME (reused) ---------- */
+    .win {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+    }
+
+    .win-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .win-bar .dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .win-bar .dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .win-bar .dots span:nth-child(1) {
+      background: #ff5f56;
+    }
+
+    .win-bar .dots span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .win-bar .dots span:nth-child(3) {
+      background: #27c93f;
+    }
+
+    .win-title {
+      flex: 1;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-dimmer);
+      letter-spacing: .04em;
+    }
+
+    .win-body {
+      padding: 22px 24px;
+    }
+
+    /* ---------- HERO / INTERACTIVE TERMINAL ---------- */
+    .hero {
+      padding: 56px 0 40px;
+    }
+
+    .hero .win-body {
+      padding: 26px 26px 20px;
+      min-height: 340px;
+    }
+
+    #termOutput {
+      white-space: pre-wrap;
+      font-size: 13.5px;
+      line-height: 1.75;
+    }
+
+    #termOutput .prompt {
+      color: var(--green);
+    }
+
+    #termOutput .path {
+      color: var(--blue);
+    }
+
+    #termOutput .out {
+      color: var(--text);
+    }
+
+    #termOutput .dim {
+      color: var(--text-dim);
+    }
+
+    #termOutput .accent {
+      color: var(--amber);
+    }
+
+    #termOutput .tag {
+      display: inline-block;
+      border: 1px solid var(--border-bright);
+      color: var(--green-bright);
+      padding: 1px 7px;
+      border-radius: 3px;
+      font-size: 11.5px;
+      margin: 2px 4px 2px 0;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--green);
+      vertical-align: -2px;
+      animation: blink 1s steps(1) infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    .term-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 13.5px;
+    }
+
+    .term-input-row .p1 {
+      color: var(--green);
+      white-space: nowrap;
+    }
+
+    .term-input-row .p2 {
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    #termInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--mono-b);
+      font-size: 13.5px;
+      caret-color: var(--green);
+    }
+
+    .hint {
+      font-size: 11.5px;
+      color: var(--text-dimmer);
+      margin-top: 14px;
+      letter-spacing: .02em;
+    }
+
+    .hint b {
+      color: var(--text-dim);
+    }
+
+    .hero-title {
+      font-family: var(--mono-d);
+      font-weight: 700;
+      font-size: clamp(28px, 5vw, 44px);
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+
+    .hero-title .gt {
+      color: var(--green);
+    }
+
+    .hero-sub {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-bottom: 22px;
+    }
+
+    .hero-sub .role {
+      color: var(--amber);
+    }
+
+    /* ---------- SECTION SHELL ---------- */
+    section {
+      padding: 64px 0;
+    }
+
+    .sec-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .sec-head .idx {
+      color: var(--text-dimmer);
+      font-family: var(--mono-d);
+      font-size: 13px;
+    }
+
+    .sec-head h2 {
+      font-family: var(--mono-d);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .sec-head h2 .brk {
+      color: var(--green);
+    }
+
+    .sec-head .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .sec-sub {
+      color: var(--text-dim);
+      font-size: 13px;
+      margin: -14px 0 26px;
+      font-family: var(--mono-b);
+    }
+
+    /* ---------- ABOUT ---------- */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 22px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      color: var(--text-dimmer);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .about-grid p {
+      font-size: 13.5px;
+      color: var(--text);
+      line-height: 1.8;
+    }
+
+    .meta-list {
+      list-style: none;
+      font-size: 13px;
+    }
+
+    .meta-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .meta-list li:last-child {
+      border-bottom: none;
+    }
+
+    .meta-list .k {
+      color: var(--text-dim);
+    }
+
+    .meta-list .v {
+      color: var(--text);
+      text-align: right;
+    }
+
+    .meta-list a.v {
+      color: var(--blue);
+    }
+
+    /* ---------- SKILLS as nmap scan ---------- */
+    .scan-block {
+      margin-bottom: 22px;
+    }
+
+    .scan-cmd {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    .scan-cmd .p {
+      color: var(--green);
+    }
+
+    .scan-cmd .cmdtext {
+      color: var(--text);
+    }
+
+    table.scan {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    table.scan th {
+      text-align: left;
+      color: var(--text-dimmer);
+      font-weight: 500;
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border-bright);
+    }
+
+    table.scan td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    table.scan tr:hover td {
+      background: rgba(61, 220, 132, 0.035);
+    }
+
+    .state-open {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .bar {
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      width: 110px;
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--green-bright));
+      width: 0%;
+      transition: width 1.1s cubic-bezier(.2, .8, .2, 1);
+    }
+
+    /* ---------- EXPERIENCE (syslog) ---------- */
+    .log {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .log-head {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .log-head span {
+      color: var(--green);
+    }
+
+    .log-body {
+      padding: 6px 0;
+    }
+
+    .log-line {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 14px;
+      padding: 9px 18px;
+      font-size: 12.8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .log-line:last-child {
+      border-bottom: none;
+    }
+
+    .log-ts {
+      color: var(--text-dimmer);
+      white-space: nowrap;
+    }
+
+    .log-lvl {
+      color: var(--amber);
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    .log-msg {
+      color: var(--text);
+    }
+
+    .log-msg b {
+      color: var(--green-bright);
+      font-weight: 600;
+    }
+
+    /* ---------- PROJECTS as vuln reports ---------- */
+    .proj-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .proj-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      transition: border-color .2s ease, transform .2s ease;
+    }
+
+    .proj-card:hover {
+      border-color: var(--border-bright);
+      transform: translateY(-3px);
+    }
+
+    .proj-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+
+    .proj-id {
+      font-family: var(--mono-d);
+      font-size: 11.5px;
+      color: var(--text-dimmer);
+    }
+
+    .sev {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      padding: 3px 9px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .sev-critical {
+      background: rgba(255, 92, 92, 0.12);
+      color: var(--red);
+      border: 1px solid rgba(255, 92, 92, 0.35);
+    }
+
+    .sev-high {
+      background: rgba(255, 180, 84, 0.12);
+      color: var(--amber);
+      border: 1px solid rgba(255, 180, 84, 0.35);
+    }
+
+    .proj-title {
+      font-family: var(--mono-d);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .proj-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .proj-list {
+      list-style: none;
+      font-size: 12.5px;
+      margin-bottom: 14px;
+    }
+
+    .proj-list li {
+      padding: 4px 0 4px 16px;
+      position: relative;
+      color: var(--text);
+    }
+
+    .proj-list li::before {
+      content: "›";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+    }
+
+    .proj-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .chip {
+      font-size: 10.5px;
+      padding: 3px 8px;
+      border: 1px solid var(--border-bright);
+      border-radius: 3px;
+      color: var(--text-dim);
+    }
+
+    .proj-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: var(--green-bright);
+      text-decoration: none;
+      border-top: 1px dashed var(--border);
+      padding-top: 12px;
+      width: 100%;
+    }
+
+    .proj-link:hover {
+      color: var(--green);
+    }
+
+    /* ---------- CERTS ---------- */
+    .cert-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .cert {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+    }
+
+    .cert .ok {
+      color: var(--green);
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .cert-name {
+      font-size: 13.5px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .cert-org {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 3px;
+    }
+
+    /* education mini strip */
+    .edu-strip {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .edu-strip .l {
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .edu-strip .l b {
+      color: var(--green-bright);
+    }
+
+    .edu-strip .r {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--mono-d);
+    }
+
+    /* ---------- CONTACT ---------- */
+    .contact-win .win-body {
+      padding: 26px;
+    }
+
+    .contact-line {
+      font-size: 13.5px;
+      margin-bottom: 10px;
+    }
+
+    .contact-line .p {
+      color: var(--green);
+    }
+
+    .contact-line .cmd {
+      color: var(--blue);
+    }
+
+    .contact-line .val {
+      color: var(--text);
+    }
+
+    .contact-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--mono-b);
+      font-size: 12.5px;
+      padding: 10px 18px;
+      border-radius: 5px;
+      text-decoration: none;
+      border: 1px solid var(--border-bright);
+      color: var(--text);
+      transition: all .15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      border-color: var(--green);
+      color: var(--green-bright);
+      background: rgba(61, 220, 132, 0.06);
+    }
+
+    .btn.primary {
+      background: var(--green);
+      color: #03150c;
+      border-color: var(--green);
+      font-weight: 700;
+    }
+
+    .btn.primary:hover {
+      background: var(--green-bright);
+      color: #03150c;
+    }
+
+    footer {
+      padding: 30px 0 50px;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-dimmer);
+    }
+
+    footer .blink {
+      color: var(--green);
+      animation: blink 1.4s steps(1) infinite;
+    }
+
+    /* fade-in on scroll */
+    .reveal {
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity .6s ease, transform .6s ease;
+    }
+
+    .reveal.in {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width:760px) {
+
+      .about-grid,
+      .proj-grid,
+      .cert-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .log-line {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+
+      .hero {
+        padding: 34px 0 24px;
+      }
+
+      section {
+        padding: 44px 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      html {
+        scroll-behavior: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav>
+    <div class="tabbar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <a class="tab" href="#about">~/about</a>
+      <a class="tab" href="#skills">~/skills</a>
+      <a class="tab" href="#experience">~/experience</a>
+      <a class="tab" href="#projects">~/projects</a>
+      <a class="tab" href="#certifications">~/certs</a>
+      <a class="tab" href="#contact">~/contact</a>
+      <a class="tab resume" href="mailto:beastridershlok@gmail.com">✉ hire_me</a>
+    </div>
+  </nav>
+
+  <!-- ===================== HERO / INTERACTIVE TERMINAL ===================== -->
+  <header class="hero">
+    <div class="container">
+      <div class="win">
+        <div class="win-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="win-title">root@sloj42 — zsh — 100×34</div>
+        </div>
+        <div class="win-body">
+          <div id="termOutput"></div>
+          <div class="term-input-row">
+            <span class="p1">root@sloj42</span><span class="p2">~$</span>
+            <input id="termInput" type="text" autocomplete="off" spellcheck="false"
+              placeholder="type 'help' and press enter…">
+          </div>
+          <div class="hint">try: <b>help</b> · <b>whoami</b> · <b>skills</b> · <b>projects</b> · <b>experience</b> ·
+            <b>certs</b> · <b>contact</b> · <b>clear</b> · <b>sudo hire-shlok</b>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== ABOUT ===================== -->
+  <section id="about">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">01</span>
+        <h2><span class="brk">$</span> cat about.md</h2>
+        <div class="line"></div>
+      </div>
+      <div class="about-grid reveal">
+        <div class="card">
+          <div class="card-label">summary</div>
+          <p>Aspiring Offensive Security Engineer with hands-on experience in vulnerability assessment, penetration
+            testing, cloud security testing, and AI-assisted security research. I build offensive security tools,
+            automate reconnaissance workflows, and validate findings across modern attack surfaces — currently ~1 year
+            deep into VAPT, with a focus on AI-driven penetration testing, cloud security, API testing, and emerging
+            threats.</p>
+        </div>
+        <div class="card">
+          <div class="card-label">profile.json</div>
+          <ul class="meta-list">
+            <li><span class="k">role</span><span class="v">Offensive Security Engineer (Fresher)</span></li>
+            <li><span class="k">location</span><span class="v">Pune, Maharashtra, IN</span></li>
+            <li><span class="k">focus</span><span class="v">VAPT · Cloud · AI Security</span></li>
+            <li><span class="k">email</span><a class="v"
+                href="mailto:beastridershlok@gmail.com">beastridershlok@gmail.com</a></li>
+            <li><span class="k">linkedin</span><a class="v" href="https://linkedin.com/in/shlokjadhav42" target="_blank"
+                rel="noopener">/in/shlokjadhav42</a></li>
+            <li><span class="k">github</span><a class="v" href="https://github.com/Slo-J42" target="_blank"
+                rel="noopener">/Slo-J42</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SKILLS as NMAP SCAN ===================== -->
+  <section id="skills">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">02</span>
+        <h2><span class="brk">$</span> nmap -sV sloj42 --skills</h2>
+        <div class="line"></div>
+      </div>
+      <div class="sec-sub reveal">Scanning host for open competencies… scan report follows.</div>
+
+      <div class="reveal">
+        <div class="scan-block">
+          <div class="scan-cmd"><span class="p">›</span> <span class="cmdtext">scanning category: languages &amp;
+              systems</span></div>
+          <table class="scan" data-cat="lang">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>State</th>
+                <th>Service</th>
+                <th>Proficiency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>22/tcp</td>
+                <td class="state-open">open</td>
+                <td>Python</td>
+                <td>
+                  <div class="bar"><i data-w="88"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>23/tcp</td>
+                <td class="state-open">open</td>
+                <td>Bash / Shell</td>
+                <td>
+                  <div class="bar"><i data-w="82"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>24/tcp</td>
+                <td class="state-open">open</td>
+                <td>Kali Linux</td>
+                <td>
+                  <div class="bar"><i data-w="85"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>25/tcp</td>
+                <td class="state-open">open</td>
+                <td>Windows</td>
+                <td>
+                  <div class="bar"><i data-w="75"></i></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="scan-block">
+          <div class="scan-cmd"><span class="p">›</span> <span class="cmdtext">scanning category: tooling</span></div>
+          <table class="scan" data-cat="tools">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>State</th>
+                <th>Service</th>
+                <th>Proficiency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>80/tcp</td>
+                <td class="state-open">open</td>
+                <td>Burp Suite</td>
+                <td>
+                  <div class="bar"><i data-w="90"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>81/tcp</td>
+                <td class="state-open">open</td>
+                <td>Nmap</td>
+                <td>
+                  <div class="bar"><i data-w="90"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>82/tcp</td>
+                <td class="state-open">open</td>
+                <td>Metasploit</td>
+                <td>
+                  <div class="bar"><i data-w="78"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>83/tcp</td>
+                <td class="state-open">open</td>
+                <td>Wireshark</td>
+                <td>
+                  <div class="bar"><i data-w="80"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>84/tcp</td>
+                <td class="state-open">open</td>
+                <td>Hydra</td>
+                <td>
+                  <div class="bar"><i data-w="72"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>85/tcp</td>
+                <td class="state-open">open</td>
+                <td>Nikto</td>
+                <td>
+                  <div class="bar"><i data-w="74"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>86/tcp</td>
+                <td class="state-open">open</td>
+                <td>Suricata</td>
+                <td>
+                  <div class="bar"><i data-w="70"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>87/tcp</td>
+                <td class="state-open">open</td>
+                <td>Splunk</td>
+                <td>
+                  <div class="bar"><i data-w="70"></i></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="scan-block">
+          <div class="scan-cmd"><span class="p">›</span> <span class="cmdtext">scanning category: security
+              domains</span></div>
+          <table class="scan" data-cat="areas">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>State</th>
+                <th>Service</th>
+                <th>Proficiency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>443/tcp</td>
+                <td class="state-open">open</td>
+                <td>Penetration Testing</td>
+                <td>
+                  <div class="bar"><i data-w="85"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>444/tcp</td>
+                <td class="state-open">open</td>
+                <td>Vulnerability Assessment</td>
+                <td>
+                  <div class="bar"><i data-w="86"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>445/tcp</td>
+                <td class="state-open">open</td>
+                <td>SOC Analysis</td>
+                <td>
+                  <div class="bar"><i data-w="70"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>446/tcp</td>
+                <td class="state-open">open</td>
+                <td>Network Reconnaissance</td>
+                <td>
+                  <div class="bar"><i data-w="82"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>447/tcp</td>
+                <td class="state-open">open</td>
+                <td>Log Analysis</td>
+                <td>
+                  <div class="bar"><i data-w="74"></i></div>
+                </td>
+              </tr>
+              <tr>
+                <td>448/tcp</td>
+                <td class="state-open">open</td>
+                <td>OWASP Top 10</td>
+                <td>
+                  <div class="bar"><i data-w="84"></i></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="scan-block" style="margin-bottom:0;">
+          <div class="scan-cmd"><span class="p">›</span> <span class="cmdtext">soft-skills.txt</span></div>
+          <div>
+            <span class="chip">Critical Thinking</span>
+            <span class="chip">Communication</span>
+            <span class="chip">Documentation</span>
+            <span class="chip">Team Collaboration</span>
+            <span class="chip">Team Leadership</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== EXPERIENCE (syslog) ===================== -->
+  <section id="experience">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">03</span>
+        <h2><span class="brk">$</span> journalctl -u experience</h2>
+        <div class="line"></div>
+      </div>
+      <div class="log reveal">
+        <div class="log-head"><span>●</span> VAPT Intern — CyArt (Remote) &nbsp;·&nbsp; Oct 2025 – June 2026
+          &nbsp;·&nbsp; status: <span>active-alumnus</span></div>
+        <div class="log-body">
+          <div class="log-line">
+            <div class="log-ts">2025-10-01</div>
+            <div class="log-msg"><span class="log-lvl">[INFO]</span>Onboarded to <b>AI-powered penetration testing
+                framework</b> focused on automated vulnerability discovery and behavioral analysis.</div>
+          </div>
+          <div class="log-line">
+            <div class="log-ts">2025-11-14</div>
+            <div class="log-msg"><span class="log-lvl">[BUILD]</span>Engineered modular offensive agents, incl. an <b>S3
+                Bucket Recon Listener</b> for cloud misconfiguration enumeration.</div>
+          </div>
+          <div class="log-line">
+            <div class="log-ts">2025-12-20</div>
+            <div class="log-msg"><span class="log-lvl">[BUILD]</span>Shipped an <b>HTTP Header Injection detection
+                agent</b> with CRLF payload automation, response-diff analysis, and confidence scoring logic.</div>
+          </div>
+          <div class="log-line">
+            <div class="log-ts">2026-02-05</div>
+            <div class="log-msg"><span class="log-lvl">[TUNE]</span>Collaborated on detection tuning and
+              <b>false-positive reduction</b> strategies for real-world red team simulation environments.
+            </div>
+          </div>
+          <div class="log-line">
+            <div class="log-ts">2026-03-01</div>
+            <div class="log-msg"><span class="log-lvl">[LEAD]</span>Appointed as a <b>team leader</b> — mentored and
+              guided
+              new interns in tool development and testing.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PROJECTS as vuln reports ===================== -->
+  <section id="projects">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">04</span>
+        <h2><span class="brk">$</span> ls -la ./projects</h2>
+        <div class="line"></div>
+      </div>
+      <div class="proj-grid reveal">
+
+        <div class="proj-card">
+          <div class="proj-top">
+            <span class="proj-id">REPORT-2026-0114</span>
+            <span class="sev sev-critical">Critical Exposure</span>
+          </div>
+          <div class="proj-title">S3 Bucket Listener / Scanner</div>
+          <p class="proj-desc">A cloud security assessment tool that hunts down misconfigured and publicly exposed AWS
+            S3, GCP, and Azure Blob buckets.</p>
+          <ul class="proj-list">
+            <li>Automated enumeration of bucket existence, public read/write access, and object listing permissions</li>
+            <li>Multi-threaded scanning engine for efficient large-scale assessments</li>
+            <li>Intelligent response analysis distinguishing valid, restricted, and non-existent buckets</li>
+          </ul>
+          <div class="proj-stack">
+            <span class="chip">Python</span><span class="chip">AWS S3</span><span class="chip">GCP</span><span
+              class="chip">Azure Blob</span><span class="chip">Multithreading</span>
+          </div>
+          <a class="proj-link" href="https://github.com/Slo-J42/S3-Bucket-Scanner" target="_blank" rel="noopener">↳
+            github.com/Slo-J42/S3-Bucket-Scanner</a>
+        </div>
+
+        <div class="proj-card">
+          <div class="proj-top">
+            <span class="proj-id">REPORT-2026-0122</span>
+            <span class="sev sev-high">High Severity</span>
+          </div>
+          <div class="proj-title">HTTP Header Injection Detector</div>
+          <p class="proj-desc">A red-team-oriented testing tool built to catch HTTP header injection and CRLF
+            vulnerabilities in web applications.</p>
+          <ul class="proj-list">
+            <li>Dynamic header discovery to auto-identify injectable input vectors</li>
+            <li>Response-diff engine comparing baseline vs. payload responses for behavioral anomaly detection</li>
+            <li>Confidence scoring via multi-factor response analysis to cut false positives</li>
+            <li>Raw socket mode to bypass client-side normalization and test low-level CRLF delivery</li>
+          </ul>
+          <div class="proj-stack">
+            <span class="chip">Python</span><span class="chip">Sockets</span><span class="chip">CRLF</span><span
+              class="chip">HTTP</span><span class="chip">Red Team</span>
+          </div>
+          <a class="proj-link" href="https://github.com/Slo-J42/HTTP-Header-Injection-Detector" target="_blank"
+            rel="noopener">↳ github.com/Slo-J42/HTTP-Header-Injection-Detector</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CERTIFICATIONS ===================== -->
+  <section id="certifications">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">05</span>
+        <h2><span class="brk">$</span> gpg --verify certs/*</h2>
+        <div class="line"></div>
+      </div>
+      <div class="cert-grid reveal">
+        <div class="cert">
+          <div class="ok">✓</div>
+          <div>
+            <div class="cert-name">Cisco Ethical Hacker</div>
+            <div class="cert-org">Cisco</div>
+          </div>
+        </div>
+        <div class="cert">
+          <div class="ok">✓</div>
+          <div>
+            <div class="cert-name">CEHv13 · CCNA · RHCSA (Training)</div>
+            <div class="cert-org">Seven Mentor Training Institute</div>
+          </div>
+        </div>
+        <div class="cert">
+          <div class="ok">✓</div>
+          <div>
+            <div class="cert-name">Cybersecurity Fundamentals</div>
+            <div class="cert-org">IBM SkillsBuild, 2025</div>
+          </div>
+        </div>
+        <div class="cert">
+          <div class="ok">✓</div>
+          <div>
+            <div class="cert-name">Cybersecurity Analyst Job Simulation</div>
+            <div class="cert-org">TCS, 2025</div>
+          </div>
+        </div>
+      </div>
+      <div class="edu-strip reveal">
+        <div class="l"><b>B.Sc, Computer Science</b> — Modern College of Arts, Science and Commerce, Ganeshkhind,
+          Pune-16</div>
+        <div class="r">2022 — 2025</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CONTACT ===================== -->
+  <section id="contact">
+    <div class="container">
+      <div class="sec-head reveal"><span class="idx">06</span>
+        <h2><span class="brk">$</span> ./connect.sh</h2>
+        <div class="line"></div>
+      </div>
+      <div class="win contact-win reveal">
+        <div class="win-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="win-title">root@sloj42 — connect.sh</div>
+        </div>
+        <div class="win-body">
+          <div class="contact-line"><span class="p">$</span> <span class="cmd">mail</span> <span class="val">--to
+              beastridershlok@gmail.com</span></div>
+          <div class="contact-line"><span class="p">$</span> <span class="cmd">open</span> <span
+              class="val">linkedin.com/in/shlokjadhav42</span></div>
+          <div class="contact-line"><span class="p">$</span> <span class="cmd">open</span> <span
+              class="val">github.com/Slo-J42</span></div>
+          <div class="contact-actions">
+            <a class="btn primary" href="mailto:beastridershlok@gmail.com">✉ send email</a>
+            <a class="btn" href="https://linkedin.com/in/shlokjadhav42" target="_blank" rel="noopener">in LinkedIn</a>
+            <a class="btn" href="https://github.com/Slo-J42" target="_blank" rel="noopener">⌥ GitHub</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    root@sloj42:~$ <span class="blink">_</span> &nbsp; session logged — thanks for scanning. built with intent, not a
+    template.
+  </footer>
+
+  <script>
+    // ---------- scroll reveal ----------
+    const revealEls = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    revealEls.forEach(el => io.observe(el));
+
+    // ---------- skill bars animate on view ----------
+    const bars = document.querySelectorAll('.bar i');
+    const barIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const i = e.target;
+          i.style.width = i.dataset.w + '%';
+        }
+      });
+    }, { threshold: 0.4 });
+    bars.forEach(b => barIO.observe(b));
+
+    // ---------- interactive terminal ----------
+    const out = document.getElementById('termOutput');
+    const input = document.getElementById('termInput');
+
+    function line(html) { const d = document.createElement('div'); d.innerHTML = html; out.appendChild(d); }
+    function scrollTermIntoView() { input.scrollIntoView({ block: 'nearest' }); }
+
+    const boot = [
+      '<span class="dim">Booting sloj42@offsec-workstation …</span>',
+      '<span class="dim">Loading recon modules ................ [ OK ]</span>',
+      '<span class="dim">Mounting /home/sloj42/portfolio ....... [ OK ]</span>',
+      '<span class="prompt">root@sloj42</span><span class="out">:</span><span class="path">~</span><span class="out">$ </span><span class="accent">whoami</span>',
+      '<span class="out">Shlok Jadhav — Offensive Security Engineer <span class="dim">(fresher, ~1yr VAPT)</span></span>',
+      '<span class="out">Pune, Maharashtra, India</span>',
+      '',
+      '<span class="prompt">root@sloj42</span><span class="out">:</span><span class="path">~</span><span class="out">$ </span><span class="accent">nmap -sV target-skills</span>',
+      '<span class="dim">Starting scan… host is up.</span>',
+      '<span class="out">Open services: </span><span class="tag">Python</span><span class="tag">Burp Suite</span><span class="tag">Nmap</span><span class="tag">Metasploit</span><span class="tag">Wireshark</span><span class="tag">OWASP Top 10</span>',
+      '',
+      '<span class="dim">Type a command below, or use the tabs above to navigate.</span>'
+    ];
+
+    function typeBoot(i) {
+      if (i >= boot.length) { input.focus(); return; }
+      line(boot[i]);
+      scrollTermIntoView();
+      setTimeout(() => typeBoot(i + 1), i < 3 ? 260 : 140);
+    }
+    typeBoot(0);
+
+    const commandMap = {
+      about: 'about', whoami: 'about', skills: 'skills', experience: 'experience',
+      work: 'experience', projects: 'projects', certs: 'certifications',
+      certifications: 'certifications', contact: 'contact'
+    };
+
+    function runCommand(raw) {
+      const cmd = raw.trim();
+      const lc = cmd.toLowerCase();
+      line('<span class="prompt">root@sloj42</span><span class="out">:</span><span class="path">~</span><span class="out">$ </span><span class="out">' + escapeHtml(cmd) + '</span>');
+
+      if (lc === '') { return; }
+      if (lc === 'help') {
+        line('<span class="dim">available: help, whoami, about, skills, experience, projects, certs, contact, clear, sudo hire-sloj42</span>');
+      } else if (lc === 'clear') {
+        out.innerHTML = ''; return;
+      } else if (lc === 'sudo hire-sloj42' || lc === 'sudo hire sloj42') {
+        line('<span class="accent">[sudo] password for recruiter: ****************</span>');
+        line('<span class="out">Access granted. Redirecting to ~/contact …</span>');
+        setTimeout(() => { document.getElementById('contact').scrollIntoView({ behavior: 'smooth' }); }, 500);
+      } else if (commandMap[lc]) {
+        const id = commandMap[lc];
+        line('<span class="out">Opening <span class="accent">#' + id + '</span> …</span>');
+        setTimeout(() => { document.getElementById(id).scrollIntoView({ behavior: 'smooth' }); }, 200);
+      } else if (lc === 'ls') {
+        line('<span class="out">about.md  skills/  experience.log  projects/  certifications/  connect.sh</span>');
+      } else {
+        line('<span class="out">zsh: command not found: ' + escapeHtml(cmd) + ' — try <span class="accent">help</span></span>');
+      }
+      scrollTermIntoView();
+    }
+
+    function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        runCommand(input.value);
+        input.value = '';
+      }
+    });
+
+    // focus terminal on click anywhere in the window
+    document.querySelector('.hero .win').addEventListener('click', () => input.focus());
+  </script>
+
+</body>
+
+</html>
